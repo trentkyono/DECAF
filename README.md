@@ -20,13 +20,13 @@ This is example code for running DECAF for synthesizing fair data.
 
 ## Examples
 
-Base example on toy dag.
+Base example on toy dag:
 ```bash
 $ python main.py
 ```
 
-An example to run toy example with a dataset size of 2000 for 300 max_steps with a missingness of 30%
+An example to run with a dataset size of 2000 for 300 epochs:
 ```bash
-$ python3 run_example.py --dataset_sz 2000 --max_steps 300 --missingness 0.3
+$ python main.py --datasize 2000 --epochs 300
 ```
 
