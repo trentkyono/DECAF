@@ -8,71 +8,11 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, random_split
 import pytorch_lightning as pl
-from metrics.combined import compute_metrics
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import networkx as nx
 from sklearn.preprocessing import MinMaxScaler
-import utils_notears as ut
-from utils import simulate_from_dag_lg
 import networkx as nx
-
-def gen_synthetic_data(n = 2000):
-    nb_nodes = 10
-    G = nx.DiGraph()
-    for i in range(nb_nodes):
-        G.add_node(i)
-    G.add_edge(1,2)
-    G.add_edge(1,3)
-    G.add_edge(1,4)
-    G.add_edge(2,5)
-    G.add_edge(2,0)
-    G.add_edge(3,0)
-    G.add_edge(3,6)
-    G.add_edge(3,7)
-    G.add_edge(6,9)
-    G.add_edge(0,8)
-    G.add_edge(0,9)    
-    
-    sem_type = 'mim'
-    raw_synth_data = ut.simulate_nonlinear_sem(nx.adj_matrix(G).todense(), n, sem_type)
-    return MinMaxScaler().fit_transform(raw_synth_data)    
-    
-
-def DAG_adj_to_triangular(M, form = 'upper'):
-    """
-    Converts adjacency matrix of DAG to upper triangular form. This form is not
-    unique, unless the DAG is a chain.
-    Parameters
-    ----------
-    M : unsorted adjacency matrix
-    Returns
-    -------
-    M : adjacency matrix in upper triangular form
-    """
-    
-    if form == 'lower':
-        M = M.T
-    
-    sort_indices = np.arange(M.shape[0])
-    
-    for i in range(M.shape[0]):
-        f = np.argsort(M[i:,i:].sum(axis=0))+i
-        e = np.array(range(i))
-        c = np.array(np.concatenate((e,f)),dtype = 'int')
-        M = M[c]
-        M = M[:,c]
-        sort_indices = sort_indices[c]
-
-    if form == 'lower':
-        M = M.T
-
-    return M, sort_indices    
-
-import torch
-import scipy.linalg as slin
-
 
 class TraceExpm(torch.autograd.Function):
     @staticmethod
@@ -92,50 +32,6 @@ class TraceExpm(torch.autograd.Function):
 
 
 trace_expm = TraceExpm.apply
-
-
-class SynthDataset(torch.utils.data.Dataset):
-
-    def __init__(self):
-        data = np.array(gen_synthetic_data(), dtype = 'float32')
-        self.x = torch.from_numpy(data)
-        self.n_samples = self.x.shape[0]
-        
-        print("***** DATA ****")
-        print("n_samples = ", self.n_samples)
-
-    def __getitem__(self, index):
-        return self.x[index]
-
-    
-    def __len__(self):
-        return self.n_samples
-
-    
-
-
-class SyntheticDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = './', batch_size: int = 64, num_workers: int = 0):
-        super().__init__()
-        self.data_dir = data_dir
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-
-    def setup(self, stage=None):
-        self.dataset = SynthDataset()
-        self.dims = self.dataset.x.shape[1:]
-        return self.dataset.x
-        
-    def train_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
-
-    def val_dataloader(self):
-        return DataLoader(self.data_val, batch_size=self.batch_size, num_workers=self.num_workers)
-
-    def test_dataloader(self):
-        return DataLoader(self.data_test, batch_size=self.batch_size, num_workers=self.num_workers)
-
-
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, data):
         data = np.array(data, dtype = 'float32')
@@ -149,7 +45,6 @@ class Dataset(torch.utils.data.Dataset):
         return self.n_samples
     
 class DataModule(pl.LightningDataModule):
-
     def __init__(self, data, data_dir: str = './', batch_size: int = 64, num_workers: int = 0):
         super().__init__()
         self.data_dir = data_dir
@@ -172,8 +67,6 @@ class DataModule(pl.LightningDataModule):
     
     
 activation_layer = nn.ReLU(inplace=True)
-
-
 class Generator(nn.Module):
     def __init__(self, z_dim, x_dim, h_dim, f_scale = 0.1):
         super().__init__()
@@ -557,21 +450,4 @@ class DECAF(pl.LightningModule):
         self.orig_data = orig_data
     
     def on_epoch_end(self, log=True):
-        if not log or self.epoch_no%30==0:
-            if len(self.orig_data) > 0:
-                print(self.get_gen_order())
-                synth_data = self.gen_synthetic(self.orig_data, self.get_gen_order()).detach().numpy()
-                which_metric = [['PRDC', 'FD','ID'],['OC']]
-                results_metrics = compute_metrics(self.orig_data.numpy(), synth_data, 
-                                                  which_metric = which_metric, 
-                                                  wd_params = {},
-                                                  model = None,
-                                                  verbose = True # not log
-                                         )
-                if log:
-                    for key in results_metrics:
-                        self.log(key, results_metrics[key])
-            else:
-                print("Debug mode off")
-
         self.epoch_no += 1
