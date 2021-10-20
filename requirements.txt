@@ -1,0 +1,10 @@
+loguru
+networkx == 2.*
+numpy == 1.19.*
+pandas
+pytorch-lightning == 1.4.*
+scipy
+sklearn
+torch == 1.9.*
+torchtext == 0.10.*
+xgboost
